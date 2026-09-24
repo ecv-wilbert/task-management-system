@@ -1,5 +1,8 @@
 # Architecture
 
+Folder layout and the frontend/backend split are in [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md).
+Auth and encryption: [AUTH.md](AUTH.md). The Punchy assistant: [PUNCHY.md](PUNCHY.md).
+
 ## Overview
 
 ```mermaid
@@ -18,16 +21,21 @@ flowchart LR
   subgraph Supabase
     Auth[Auth]
     REST[PostgREST API]
+    FN[Edge Function<br/>punchy]
     PG[(Postgres + RLS)]
     REST --> PG
+    FN --> PG
   end
+  Gemini[Gemini API]
   SW -- app shell --> Static
   RQ -- supabase-js --> REST
   UI -- sign in / sign up --> Auth
+  UI -- Ask Punchy --> FN
+  FN --> Gemini
 ```
 
-There is no custom backend server. The browser talks to Supabase directly with the **publishable**
-key. Security comes from Postgres Row Level Security: every query runs as the signed-in user, and
+There is no always-on backend server. The browser talks to Supabase directly with the **publishable**
+key. The one piece of server code is the `punchy` Edge Function, which holds the Gemini key. Security comes from Postgres Row Level Security: every query runs as the signed-in user, and
 the policies only allow access to rows where `user_id = auth.uid()`.
 
 ## Frontend layers
@@ -83,3 +91,30 @@ The product palette is navy ink (`--primary`), cool paper (`--background`), mark
 (`--marker`, used for the landing hero and logo) and a reserved `--overdue` red. `--chart-1` was checked
 for contrast in light and dark mode. Headings use Bricolage Grotesque; UI text uses Geist. Both
 fonts are self-hosted via Fontsource, so they work offline.
+
+## SEO
+
+The app is client-rendered, so crawler-facing data lives in static files (ADR-011):
+
+| What | Where |
+| --- | --- |
+| Title, description, canonical, Open Graph + Twitter card, `WebApplication` JSON-LD, `<noscript>` summary | `apps/web/index.html` |
+| Social preview image (1200×630) | `apps/web/public/og-image.png` |
+| `robots.txt` (allow all) and `sitemap.xml` (landing page) | `apps/web/public/` |
+| Per-page `<title>` and `noindex` for sign-in, app and error pages | `usePageMeta` in `src/lib/seo.ts` |
+| `X-Robots-Tag: noindex` for `/app/*` and `/login`, for crawlers that don't run JS | `vercel.json` |
+
+If the production domain changes, update the canonical, `og:url`, `og:image`, JSON-LD, `robots.txt`
+and `sitemap.xml` URLs.
+
+## Errors
+
+Every route sits under a pathless root with `errorElement: <RouteErrorPage />`, so a render error
+shows a friendly page with **Reload** instead of React Router's developer screen.
+
+## Cursor
+
+Everything clickable (buttons, tabs, menu and select items, checkboxes…) gets `cursor: pointer`
+from one unlayered rule in `index.css`. Tailwind v4 defaults buttons to `cursor: default` and the
+generated shadcn items add `cursor-default`; the rule overrides both without editing
+`components/ui`. Disabled controls are excluded.

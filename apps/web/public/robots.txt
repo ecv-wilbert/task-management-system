@@ -1,0 +1,7 @@
+# Sign-in and signed-in pages send "noindex" (page meta + X-Robots-Tag), so they
+# stay out of search results without being blocked here: a Disallow would stop
+# crawlers from seeing the noindex.
+User-agent: *
+Allow: /
+
+Sitemap: https://task-management-system-two-puce.vercel.app/sitemap.xml

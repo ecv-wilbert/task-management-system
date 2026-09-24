@@ -8,14 +8,21 @@ connection, and syncs changes made offline once you're back online.
 
 ## Features
 
-- **Auth:** email/password sign-up and sign-in with Supabase Auth. `/app` routes are protected.
+- **Auth:** email/password sign-up and sign-in with Supabase Auth, plus **passkeys** (Face ID, Touch ID,
+  fingerprint, Windows Hello). Sign-up checks email format, blocks duplicate emails, requires a strong
+  password (live strength meter) and a matching confirmation. `/app` routes are protected. See
+  [docs/AUTH.md](docs/AUTH.md).
 - **Full CRUD on tasks:** create, list/filter/search, edit, mark done/reopen, delete (with confirmation).
 - **Dashboard:** open / due-in-7-days / overdue / completed tiles, a 14-day completions chart, open tasks
   by priority, and an "Up next" list (shadcn/ui + Recharts).
 - **Offline-first PWA:** installable; the app shell is precached by a service worker. Task data is cached
   in IndexedDB, and changes made offline are queued and replayed on reconnect.
+- **Punchy, the assistant:** an "Ask Punchy" chat on the landing page (product questions) and inside the
+  app (what's overdue, what to do first, drafts tasks with notes and due dates for you to review). Tight
+  guardrails: Punchlist topics only, suggestions only, rate limited. See [docs/PUNCHY.md](docs/PUNCHY.md).
 - **Secure by default:** Postgres Row Level Security means each user can only read and write their own rows.
 - Light and dark themes, responsive down to phone width.
+- **SEO-ready landing page:** meta and social cards, structured data, sitemap, FAQ; private pages are `noindex`.
 
 ## Tech stack
 
@@ -24,20 +31,28 @@ connection, and syncs changes made offline once you're back online.
 | Frontend | Vite 8, React 19, TypeScript, React Router 8 |
 | UI | Tailwind CSS v4, shadcn/ui (Radix), Recharts, lucide icons |
 | Data | TanStack Query (+ IndexedDB persistence), Zod, react-hook-form |
-| Backend | Supabase (Postgres, Auth, RLS), no custom server |
+| Backend | Supabase (Postgres, Auth, RLS, one Edge Function), no always-on server |
+| AI | Google Gemini via the `punchy` Edge Function |
 | PWA | vite-plugin-pwa (Workbox) |
 | Hosting | Vercel |
 | Tooling | pnpm workspaces, oxlint, Vitest |
 
 ## Project structure
 
+A pnpm-workspaces monorepo: one repo, one lockfile, several packages that import each other
+without publishing (ADR-001).
+
 ```
 apps/web/          The React PWA
-packages/shared/   DB types (generated), Zod schemas, pure domain logic
-supabase/          config.toml + SQL migrations (schema, RLS, triggers)
+packages/shared/   DB types (generated), Zod schemas, pure domain logic, Punchy guardrails
+supabase/          config.toml, SQL migrations (schema, RLS, triggers), Edge Functions
 docs/              Architecture, data model, decisions, deployment, progress
 AGENTS.md          How to work in this repo (for humans and AI agents)
 ```
+
+`apps/web` is the frontend. The backend is Supabase: there's no custom server, so the backend code in
+this repo is the SQL in `supabase/migrations`. The full annotated tree, the FE/BE boundary and how it
+maps to MVC are in [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md).
 
 ## Getting started
 
@@ -94,6 +109,7 @@ To test the PWA and offline mode, use the production build: `pnpm build && pnpm 
 | `pnpm preview` | Serve the production build |
 | `pnpm lint` / `pnpm typecheck` / `pnpm test` | Lint, typecheck, unit tests |
 | `pnpm db:new <name>` / `pnpm db:push` / `pnpm db:types` | New migration / apply migrations / regenerate TS types |
+| `pnpm fn:deploy` | Deploy the Edge Functions (Punchy, email check) |
 
 ## Deployment
 
@@ -104,7 +120,10 @@ settings, are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 ## Documentation
 
 - [AGENTS.md](AGENTS.md): conventions and workflow for contributors and AI agents
+- [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): folder tree, frontend vs backend, MVC mapping, where new code goes
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the pieces fit, offline strategy
+- [docs/AUTH.md](docs/AUTH.md): sign-in, passkeys, form validation, what's encrypted where
+- [docs/PUNCHY.md](docs/PUNCHY.md): the assistant, guardrails, rate limits
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md): tables, triggers, RLS
 - [docs/DECISIONS.md](docs/DECISIONS.md): why things are the way they are
 - [docs/PROGRESS.md](docs/PROGRESS.md): current status, roadmap, session log

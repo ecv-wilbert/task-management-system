@@ -1,9 +1,11 @@
-import { Check, CloudOff, Download, Lock } from 'lucide-react'
+import { Check, ChevronDown, CloudOff, Download, Lock } from 'lucide-react'
 import { Link } from 'react-router'
 import { Logo } from '@/components/logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/features/auth/auth-context'
+import { PunchyLauncher } from '@/features/punchy/punchy-launcher'
+import { usePageMeta } from '@/lib/seo'
 import { cn } from '@/lib/utils'
 
 const DEMO_LIST = [
@@ -28,12 +30,36 @@ const POINTS = [
   {
     icon: Lock,
     title: 'Only you see your tasks',
-    body: 'Every row is locked to your account at the database level.',
+    body: 'Your list is private to your account. Nobody else can see it.',
+  },
+]
+
+const FAQ = [
+  {
+    q: 'Does Punchlist work offline?',
+    a: 'Yes. After your first visit it opens without a connection. Add, edit and finish tasks as usual; your changes are saved on the device and sync to your account as soon as you’re back online.',
+  },
+  {
+    q: 'Can I use it on my phone?',
+    a: 'Yes. Punchlist runs in any modern browser and installs like an app: choose “Add to Home Screen” on iPhone or “Install app” on Android, Chrome and Edge.',
+  },
+  {
+    q: 'Who can see my tasks?',
+    a: 'Only you. Every task is tied to your account, and nobody else can read or change it.',
+  },
+  {
+    q: 'Can I sign in without a password?',
+    a: 'Yes. Once you’re signed in, add a passkey and use Face ID, Touch ID, your fingerprint or your device PIN next time.',
+  },
+  {
+    q: 'What is Punchy?',
+    a: 'Punchy is the helper built into Punchlist. Ask what’s overdue or what to tackle first, and it can draft tasks with notes and due dates for you to review and add.',
   },
 ]
 
 export function LandingPage() {
   const { session } = useAuth()
+  usePageMeta({})
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -69,7 +95,7 @@ export function LandingPage() {
               ) : (
                 <>
                   <Button asChild size="lg">
-                    <Link to="/login" state={{ from: '/app' }}>
+                    <Link to="/login" state={{ from: '/app', tab: 'sign-up' }}>
                       Create an account
                     </Link>
                   </Button>
@@ -95,11 +121,35 @@ export function LandingPage() {
             ))}
           </ul>
         </section>
+
+        <section aria-labelledby="faq-heading" className="border-t">
+          <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-14 md:grid-cols-[1fr_2fr] md:px-6">
+            <h2 id="faq-heading" className="text-2xl font-semibold">
+              Questions, answered
+            </h2>
+            <div className="divide-y border-y">
+              {FAQ.map((item) => (
+                <details key={item.q} className="group py-4">
+                  <summary className="flex list-none items-center justify-between gap-4 font-medium [&::-webkit-details-marker]:hidden">
+                    {item.q}
+                    <ChevronDown
+                      aria-hidden
+                      className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180"
+                    />
+                  </summary>
+                  <p className="text-muted-foreground mt-2 max-w-[62ch] text-sm leading-relaxed">{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="text-muted-foreground mx-auto w-full max-w-6xl px-4 py-8 text-sm md:px-6">
-        Built with React, Supabase and Vercel.
+        © {new Date().getFullYear()} Punchlist
       </footer>
+
+      <PunchyLauncher surface="landing" />
     </div>
   )
 }

@@ -13,6 +13,7 @@
     "test": "pnpm -r test",
     "db:types": "supabase gen types typescript --linked --schema public > packages/shared/src/database.types.ts",
     "db:push": "supabase db push",
-    "db:new": "supabase migration new"
+    "db:new": "supabase migration new",
+    "fn:deploy": "supabase functions deploy --use-api"
   }
 }

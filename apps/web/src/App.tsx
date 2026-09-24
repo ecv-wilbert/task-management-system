@@ -23,7 +23,8 @@ export default function App() {
         <AuthProvider>
           <TooltipProvider>
             <RouterProvider router={router} />
-            <Toaster position="bottom-right" />
+            {/* Offset so toasts clear the "Ask Punchy" button. */}
+            <Toaster position="bottom-right" offset={{ bottom: 80 }} mobileOffset={{ bottom: 72 }} />
             <PwaUpdatePrompt />
           </TooltipProvider>
         </AuthProvider>

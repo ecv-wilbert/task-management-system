@@ -82,3 +82,97 @@ The sign-up form still handles the "check your email" case if it's turned back o
 
 Consequences: Anyone can register with an unverified email. Before real use, configure custom SMTP
 and turn confirmations back on.
+
+## ADR-007: Punchy runs in a Supabase Edge Function calling Gemini
+Date: 2026-09-24 · Status: accepted
+
+Context: An in-app and landing-page assistant needs an LLM API key, which can't go to the browser
+(ADR-003). The adaptive-routine project already uses Gemini with structured JSON output.
+
+Decision: One Edge Function (`supabase/functions/punchy`) with `verify_jwt = false` so anonymous
+landing visitors can use it; it verifies the JWT itself for in-app requests and reads tasks as the
+user so RLS still applies. Gemini (`gemini-3.5-flash-lite`, falling back to `gemini-flash-latest`)
+returns JSON against a schema. The contract, prompt and sanitisers live in
+`packages/shared/src/punchy.ts` with no imports so both the web app and the Deno function use the
+same code. Punchy can only suggest actions from a per-surface allow-list; task creation goes through
+the normal form for the user to confirm. The chat request uses `useMutation` with
+`networkMode: 'always'` and is not registered as a mutation default: it's a read-only question that
+must never be queued offline and replayed.
+
+Consequences: No Vercel functions to manage and the key stays in Supabase secrets. Punchy needs a
+connection. Changes to `punchy.ts` need `pnpm fn:deploy` as well as a web deploy. Task titles and
+notes (trimmed) go to Google as a processor.
+
+## ADR-008: Rate limits in Postgres, in a table with no owner
+Date: 2026-09-24 · Status: accepted
+
+Context: The landing-page assistant is public, so the Gemini key needs abuse protection. Edge
+Function memory isn't shared between instances.
+
+Decision: Fixed-window counters in `punchy_usage`, updated atomically by `punchy_take_quota()`.
+Per user (30/10 min), per HMAC-hashed IP (10/10 min) and a global anonymous cap (1000/day). The
+table is an exception to AGENTS.md rule 2 (owner-only RLS): it has no owner, so RLS is on with no
+policies and only the service role can use it. Fail closed on errors.
+
+Consequences: One extra DB round trip per message. Raw IPs are never stored.
+
+## ADR-009: Passkeys bound to the current production domain
+Date: 2026-09-24 · Status: accepted
+
+Context: Users want Face ID / Touch ID / fingerprint sign-in on iOS, Android and desktop.
+supabase-js 2.117 supports passkeys natively. A passkey is tied to one RP ID (host).
+
+Decision: Enable Supabase passkeys with RP ID `task-management-system-two-puce.vercel.app` (the
+current URL, by owner's choice). Passwords stay as the fallback. Enabled through the Management API
+because `supabase config push` (CLI 2.117) doesn't manage passkey settings; `config.toml` mirrors the
+values. Passkey calls are online-only (`networkMode: 'always'`), not queued like task writes.
+
+Consequences: Renaming the domain later orphans existing passkeys. Passkeys can't be tested on
+localhost or preview deploys. To reconcile the config drift found while doing this, `config.toml`
+now matches the live pooler sizes and leaves the Twilio block undeclared.
+
+## ADR-010: Duplicate-email check before sign-up
+Date: 2026-09-24 · Status: accepted (revisit if email confirmation is turned on)
+
+Context: The sign-up form should say an email is taken before the user submits.
+
+Decision: A `check-email` Edge Function validates and normalises the email and calls
+`email_registered()` (service role only). Rate limited to 20 checks / 10 min per HMAC-hashed IP.
+The form also maps Supabase's `user_already_exists` error to the same message, and falls back to it
+if the check can't run.
+
+Consequences: The endpoint confirms whether an address has an account (enumeration). With email
+confirmation off, sign-up already reveals that, so the risk doesn't grow much; with confirmation
+on, Supabase hides it, and this check should be removed or made much stricter.
+
+## ADR-011: SEO for a client-rendered SPA without SSR
+Date: 2026-09-24 · Status: accepted
+
+Context: The landing page should rank and share well, but the app is a Vite SPA (ADR-002).
+
+Decision: Put everything crawlers and link previews need in the static `index.html` (title,
+description, canonical, Open Graph/Twitter card with a 1200×630 image, `WebApplication` JSON-LD,
+`<noscript>` summary), add `robots.txt` + `sitemap.xml`, set per-page titles with `usePageMeta`,
+and mark sign-in, the app and error pages `noindex` both in the page and with an `X-Robots-Tag`
+header from Vercel. The landing page gained a FAQ for real, crawlable text.
+
+Consequences: Google (which renders JS) sees everything; link-preview bots see the static tags.
+If rankings matter more later, prerender the landing page at build time rather than moving to SSR.
+
+## ADR-012: Punchy limits by device, browser signature, IP and account, with a traffic log
+Date: 2026-09-24 · Status: accepted
+
+Context: IP-only limits are too coarse (whole offices share one IP) and easy to dodge with new
+accounts; per-account limits can be multiplied by signing up again.
+
+Decision: Layered buckets: a random device ID kept in localStorage, a coarse browser signature
+paired with the IP (so private windows and cleared storage don't reset limits, while the same phone
+model on another network isn't affected), the IP, and the account. Signed-in use is also capped at
+3 accounts per device (or signature + network) and 10 per IP per day. One `punchy_guard()` call
+checks, counts and logs each request. Logs and review views live in a `private` schema; identifiers
+are HMAC-hashed with a server secret; 30-day retention.
+
+Consequences: Client signals can be faked, so they only add limits, never relax the IP ones.
+Families or offices sharing one device may hit the account cap. The browser signature is a mild
+form of fingerprinting: coarse traits, hashed twice, used only for fair-use limits, disclosed in
+Punchy's product guide. Tune in `LIMITS` (`guard.ts`) and redeploy.

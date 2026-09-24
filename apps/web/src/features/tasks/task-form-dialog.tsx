@@ -43,19 +43,21 @@ interface Props {
   onOpenChange: (open: boolean) => void
   /** Task to edit. Omit to create a new one. */
   task?: Task
+  /** Prefill for a new task (e.g. a Punchy suggestion). Ignored when editing. */
+  draft?: Partial<TaskFormValues>
 }
 
-export function TaskFormDialog({ open, onOpenChange, task }: Props) {
+export function TaskFormDialog({ open, onOpenChange, task, draft }: Props) {
   const createTask = useCreateTask()
   const updateTask = useUpdateTask()
   const isEdit = !!task
 
-  const form = useForm<TaskFormValues>({ resolver: zodResolver(taskFormSchema), defaultValues: EMPTY })
+  const form = useForm<TaskFormValues>({ resolver: zodResolver(taskFormSchema), mode: 'onTouched', defaultValues: EMPTY })
   const { errors } = form.formState
 
   useEffect(() => {
-    if (open) form.reset(task ? toFormValues(task) : EMPTY)
-  }, [open, task, form])
+    if (open) form.reset(task ? toFormValues(task) : { ...EMPTY, ...draft })
+  }, [open, task, draft, form])
 
   const onSubmit = (values: TaskFormValues) => {
     const payload = {
@@ -88,8 +90,13 @@ export function TaskFormDialog({ open, onOpenChange, task }: Props) {
           </DialogHeader>
 
           <div className="grid gap-2">
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" autoFocus aria-invalid={!!errors.title} {...form.register('title')} />
+            <Label htmlFor="title">
+              Title
+              <span aria-hidden className="text-destructive -ml-1">
+                *
+              </span>
+            </Label>
+            <Input id="title" autoFocus aria-required aria-invalid={!!errors.title} {...form.register('title')} />
             {errors.title && <p className="text-sm text-destructive">{errors.title.message}</p>}
           </div>
 

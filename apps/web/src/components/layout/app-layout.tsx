@@ -1,5 +1,7 @@
-import { CheckSquare, LayoutDashboard, LogOut } from 'lucide-react'
+import { CheckSquare, Fingerprint, LayoutDashboard, LogOut } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
+import { toast } from 'sonner'
 import { Logo } from '@/components/logo'
 import { SyncStatus } from '@/components/sync-status'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -19,6 +21,11 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/features/auth/auth-context'
+import { takePasskeyOffer } from '@/features/auth/passkey-offer'
+import { passkeysSupported } from '@/features/auth/passkeys'
+import { usePageMeta } from '@/lib/seo'
+import { PasskeysDialog } from '@/features/auth/passkeys-dialog'
+import { PunchyLauncher } from '@/features/punchy/punchy-launcher'
 
 const NAV = [
   { to: '/app', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -28,6 +35,18 @@ const NAV = [
 export function AppLayout() {
   const { user, signOut } = useAuth()
   const { pathname } = useLocation()
+  const [passkeysOpen, setPasskeysOpen] = useState(false)
+  usePageMeta({ title: pathname.startsWith('/app/tasks') ? 'Tasks' : 'Dashboard', noindex: true })
+
+  // Right after sign-up, suggest a passkey once.
+  useEffect(() => {
+    if (!takePasskeyOffer() || !passkeysSupported()) return
+    toast('Sign in faster next time', {
+      description: 'Add a passkey to use Face ID, Touch ID or your fingerprint.',
+      action: { label: 'Add passkey', onClick: () => setPasskeysOpen(true) },
+      duration: 10_000,
+    })
+  }, [])
   const name = (user?.user_metadata.full_name as string | undefined) ?? user?.email ?? ''
   const initials =
     name
@@ -74,6 +93,11 @@ export function AppLayout() {
           </div>
           <SidebarMenu>
             <SidebarMenuItem>
+              <SidebarMenuButton onClick={() => setPasskeysOpen(true)}>
+                <Fingerprint aria-hidden /> Passkeys
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
               <SidebarMenuButton onClick={() => void signOut()}>
                 <LogOut aria-hidden /> Sign out
               </SidebarMenuButton>
@@ -92,6 +116,8 @@ export function AppLayout() {
           <Outlet />
         </main>
       </SidebarInset>
+      <PunchyLauncher surface="app" />
+      <PasskeysDialog open={passkeysOpen} onOpenChange={setPasskeysOpen} />
     </SidebarProvider>
   )
 }

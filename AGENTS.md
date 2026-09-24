@@ -12,18 +12,24 @@ delete their own tasks. It works offline and syncs when back online. Deployed on
 
 ```
 apps/web/                 Vite + React 19 + TypeScript PWA (the only deployable)
-  src/features/auth/      Supabase auth: provider, route guard, login/sign-up page
+  src/features/auth/      Supabase auth: provider, route guard, login/sign-up (validation),
+                          passkeys, duplicate-email check
   src/features/tasks/     Task CRUD: api.ts (Supabase calls), mutations.ts (optimistic +
                           offline defaults), queries.ts (hooks), UI components, tasks page
   src/features/dashboard/ Dashboard page, stat tiles, Recharts charts
+  src/features/punchy/    "Ask Punchy" assistant: launcher, lazy chat panel, api.ts
   src/components/ui/      shadcn/ui components (generated, do not hand-edit; re-add via CLI)
   src/components/         App-level components (layout, logo, sync status, PWA prompt)
-  src/lib/                supabase client, query client + IndexedDB persister, env, dates
-  src/pages/              Landing + 404
-packages/shared/          Types generated from the DB, Zod schemas, pure domain logic (stats)
+  src/lib/                supabase client, query client + IndexedDB persister, env, dates, seo
+  src/pages/              Landing (+ FAQ), 404, route error page
+packages/shared/          Types generated from the DB, Zod schemas, pure logic (stats, punchy, account)
 supabase/migrations/      The database schema. Source of truth. Applied with `supabase db push`
+supabase/functions/       Edge Functions (Deno): `punchy` (assistant, Gemini key), `check-email`
+                          (sign-up duplicate check), `_shared/` helpers
 docs/                     Architecture, data model, decisions, deployment, progress log
 ```
+
+Full annotated tree, FE/BE boundary and "where does new code go": `docs/PROJECT_STRUCTURE.md`.
 
 ## Commands (run from repo root)
 
@@ -37,23 +43,29 @@ docs/                     Architecture, data model, decisions, deployment, progr
 | `pnpm db:new <name>` | Create a new migration file |
 | `pnpm db:push` | Apply pending migrations to the linked Supabase project |
 | `pnpm db:types` | Regenerate `packages/shared/src/database.types.ts` from the live schema |
+| `pnpm fn:deploy` | Deploy all Edge Functions (after changing `supabase/functions/` or `packages/shared/src/{punchy,account}.ts`) |
 
 ## Rules
 
 1. **Schema changes only via new migration files.** Never edit a migration that has already been
    pushed. After `pnpm db:push`, run `pnpm db:types` and commit the regenerated types.
 2. **Every table gets RLS** with owner-only policies, following `tasks` in the init migration.
+   The only exception is service-role-only internals like `punchy_usage` (RLS on, no policies; ADR-008).
+   Internal logs and admin views go in the `private` schema, which the API doesn't expose (ADR-012).
 3. **Data access goes through TanStack Query.** New writes are registered as mutation defaults in
    a `mutations.ts` (see `features/tasks/mutations.ts`) so they survive being queued offline.
    Supply ids client-side (`crypto.randomUUID()`) and use idempotent writes (upsert).
 4. **No secrets in the repo.** The browser only ever gets the *publishable* key
    (`VITE_SUPABASE_PUBLISHABLE_KEY`). The secret key and DB password stay out of `apps/web`.
-   `.env*` and `*.local` are gitignored; `.env.example` documents the variables.
+   `.env*` and `*.local` are gitignored; `.env.example` documents the variables. Server-side keys
+   (e.g. `GEMINI_API_KEY`) live in Supabase secrets and are only read by Edge Functions.
 5. **shadcn components**: add with `pnpm dlx shadcn@latest add <name>` inside `apps/web`.
 6. **Pure logic lives in `packages/shared`** (or a plain `.ts` next to the feature) with a Vitest test.
-7. **Keep the docs true.** If you change behaviour covered in `docs/`, update the doc in the same
+7. **Keep Punchy honest.** If you add or change a user-facing feature, update `PUNCHLIST_GUIDE` in
+   `packages/shared/src/punchy.ts` and run `pnpm fn:deploy`, or Punchy will describe the old app.
+8. **Keep the docs true.** If you change behaviour covered in `docs/`, update the doc in the same
    commit. Record non-obvious choices in `docs/DECISIONS.md`.
-8. **End every working session by updating `docs/PROGRESS.md`**: what changed, what's next, and
+9. **End every working session by updating `docs/PROGRESS.md`**: what changed, what's next, and
    anything half-done. This is how the next agent picks up safely.
 
 ## Adding a feature (checklist)

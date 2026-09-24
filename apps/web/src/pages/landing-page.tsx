@@ -129,11 +129,14 @@ function PunchCard() {
             >
               {item.done && <Check aria-hidden className="size-3.5" strokeWidth={3} />}
             </span>
-            <span
-              className={cn('text-[1.05rem]', item.done && 'marker-done px-0.5')}
-              style={item.done ? ({ '--delay': `${500 + i * 380}ms` } as React.CSSProperties) : undefined}
-            >
-              {item.title}
+            {/* Inner span stays inline (flex items are blockified) so the highlight wraps per line. */}
+            <span className="text-[1.05rem]">
+              <span
+                className={cn(item.done && 'marker-done px-0.5')}
+                style={item.done ? ({ '--delay': `${500 + i * 380}ms` } as React.CSSProperties) : undefined}
+              >
+                {item.title}
+              </span>
               {item.done && <span className="sr-only"> (done)</span>}
             </span>
           </li>

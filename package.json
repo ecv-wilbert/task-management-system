@@ -1,0 +1,18 @@
+{
+  "name": "task-management-system",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.20.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm --filter @tms/web dev",
+    "build": "pnpm --filter @tms/web build",
+    "preview": "pnpm --filter @tms/web preview",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:types": "supabase gen types typescript --linked --schema public > packages/shared/src/database.types.ts",
+    "db:push": "supabase db push",
+    "db:new": "supabase migration new"
+  }
+}
